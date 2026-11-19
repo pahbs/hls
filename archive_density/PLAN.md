@@ -1,7 +1,7 @@
 # HLS archive density: plan
 
 A page that shows where and how often HLS observes the land surface, and how often those observations are clear,
-2013-2025. Built from the colleague's daily global masks, on the page template of the CSDA archive density page
+2013-2025. Built from daily global masks, on the page template of the CSDA archive density page
 (`pahbs/csda_summaries`: `lib/archive_density_template.html`, `lib/archive_density.py`).
 
 ## Inputs (checked 2026-11-19)
@@ -19,13 +19,17 @@ lon -180 to 180, lat -69.5 to 83.7. One day of both masks reads in ~2 s on a for
 Not what the first plan assumed: these are **daily 0/1 masks, not counts**, and they are **Landsat and Sentinel-2
 together** (no L30 / S30 split in these files). Counts come from adding days up.
 
-### Questions for the colleague
+### Questions
 1. **L30 / S30 separately**: are there separate masks per sensor? The neighbouring folders (`Mosaic/<year>`,
    `ts-revisit-<year>`, `Climatology_2014_2025`, the regional `*_daily_masks`, `Countries`) are not readable to us:
    group read access would let us check.
 2. **Clear masks for 2018 and 2021** are missing.
-3. **Clear but not observed**: on 2020-183, 57,528 pixels are 1 in the clear mask and 0 in the observation mask (0.07%
-   of clear pixels). Edge effect of the mosaic, or something else?
+3. **Observation masks empty from the equator to ~1° N** (checked 2026-11-19, days 183 of 2013, 2017, 2020, 2024 and
+   day 15 of 2024): pixel rows from 0° to about 1° N are 0.0-1.5% observed, against 6-10% just north and south, in
+   every year, while the clear masks are normal there (so many more pixels are "clear" than "observed" in that band:
+   this is the 0.07% of clear-but-not-observed pixels first seen on 2020-183). Looks like the mosaic step dropped the
+   band from the observation masks. Can they be regenerated? Until then the page counts a pixel observed if either mask
+   has it, so observed days read low in the band (cloudy-only observations are lost), and near zero in 2018 and 2021.
 4. Nodata: the clear masks declare 255 but have none (0 = not clear or not observed); the observation masks declare none.
 5. `World_Countries_noAntarctica_binary_aligned_to_template.tif` (a land mask on this grid) is not readable to us. Until
    it is, the area counted is every pixel HLS observed at least once.
@@ -55,7 +59,7 @@ interactive globe option, light and dark themes.
    `/explore/nobackup/projects/hls/...` or `/explore/nobackup/people/pmontesa/hls_archive_density/`. Days with a
    missing file are recorded as missing, not as zero. Estimated 2-3 h of reading in all, under 1 h split across nodes.
 2. **Check**: one month against the source rasters directly (a few cells, by hand); a map of the year's mean against
-   the colleague's own coverage results (`coverage_results_latbin_*` CSVs in the same folder).
+   the our coverage results (`coverage_results_latbin_*` CSVs in the same folder).
 3. **Monthly frames** (`build`): from the 0.1 deg store, mean observed / clear days per cell and month at 0.25 deg (the
    0.1 deg store can be summed to any coarser grid). Stored as binary, one byte per land cell per month (days in
    tenths would need two), one file per metric: ~250 k cells x 156 months = ~40 MB raw, ~10 MB compressed per metric.
