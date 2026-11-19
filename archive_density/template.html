@@ -209,7 +209,12 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 .filters.controls .timeline { grid-column: 1 / -1; }
 @media (max-width: 1000px) { .filters.controls { display: flex; } }
 /* the four summary boxes: equal width and height, number and label on one line */
-.answer { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+.answer { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+/* five boxes: the labels wrap under the number rather than being cut off; two columns, then one, on narrow screens */
+.answer .tile { white-space: normal; flex-wrap: wrap; }
+.answer .tile .v { white-space: nowrap; }
+@media (max-width: 1000px) { .answer { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+@media (max-width: 560px) { .answer { grid-template-columns: 1fr !important; } }
 .tile { align-items: baseline; white-space: nowrap; overflow: hidden; min-height: 44px; }
 .tile .v, .tile.hero .v { font-size: 20px; }
 .tile .k { font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
@@ -433,8 +438,8 @@ function renderTimeline(t) {
   root.append(svg('circle', {cx: x0, cy: y(v0), r: 5, fill: 'var(--surface)', stroke: 'var(--ink)', 'stroke-width': 2}));
   const m0 = t.totals[i0], right = x0 > w - 320;
   const text = t.totals[i0].pending ? 'not available'
-    : view === 'month' ? `${d1(v0)} ${units(t)}${t.days ? ` of ${d1(m0.obs)} observed` : m0.clear_ok ? ` (${d1(m0.clear)} clear)` : ''}, land mean`
-    : `${d1(v0)} ${units(t)} so far, land mean`;
+    : view === 'month' ? `${d1(v0)} ${units(t)}${t.days ? ` of ${d1(m0.obs)} observed` : m0.clear_ok ? ` (${d1(m0.clear)} clear)` : ''}, global land mean`
+    : `${d1(v0)} ${units(t)} so far, global land mean`;
   root.append(svg('text', {x: right ? x0 - 8 : x0 + 8, y: top - 6, 'text-anchor': right ? 'end' : 'start', style: 'fill:var(--ink);font-weight:600', text}));
   const box = $('timeline'); box.replaceChildren(root);
   box.setAttribute('aria-valuemin', 0); box.setAttribute('aria-valuemax', n - 1); box.setAttribute('aria-valuenow', i0);
@@ -527,11 +532,15 @@ function render() {
   const missing = t.totals[i].month < t.fetched_from || !!t.totals[i].pending;
   $('month').replaceChildren(name(t.totals[i].month), now ? el('small', {text: ' so far'}) : missing ? el('small', {text: G().totals[i].pending ? ' not counted yet' : ' no clear masks'}) : '');
   const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
-  // land means for the month on the map: observed days, clear days, the clear share, and the mean revisit (days between looks)
-  $('answer').replaceChildren(tile(d1(m.obs), `observed days in ${label(t, i)}, land mean`, 'hero'),
-    tile(m.clear_ok ? d1(m.clear) : '–', m.clear_ok ? 'clear days, land mean' : 'clear days: no clear masks this month'),
-    tile(m.clear_ok && m.obs ? `${Math.round(100 * m.clear / m.obs)}%` : '–', 'of observed days clear'),
-    tile(m.obs ? `${d1(m.mask_days / m.obs)} days` : '–', 'mean revisit, land pixels'));
+  // satellites over the whole record and in the month on the map (from NASA CMR: HLS granules per platform); then global land
+  // means for the month on the map: observed days, clear days, the clear share, and the mean revisit (days between looks)
+  const fleet = new Set(t.totals.flatMap(sats)).size, k = sats(m).length;
+  $('answer').replaceChildren(
+    tile(fleet ? fleet.toLocaleString() : '–', `satellite${fleet === 1 ? '' : 's'} contributing to archive (${k} in ${label(t, i)})`, 'hero'),
+    tile(missing && !t.days ? '–' : d1(m.obs), `observed days in ${label(t, i)}, global land mean`),
+    tile(m.clear_ok ? d1(m.clear) : '–', m.clear_ok ? 'clear days, global land mean' : 'clear days: no clear masks this month'),
+    tile(m.clear_ok && m.obs ? `${Math.round(100 * m.clear / m.obs)}%` : '–', 'of observed days clear, global land mean'),
+    tile(m.obs ? `${d1(m.mask_days / m.obs)} days` : '–', 'mean revisit, global land mean'));
   $('mapTitle').textContent = state.view === 'month' ? `HLS ${units(t)}, ${label(t, i)}` : `HLS ${units(t)}, summed up to ${label(t, i)}`;
   $('mapNote').textContent = !t.days && missing ? 'This month has not been counted yet: it is being added.'
     : t.days && missing ? (G().totals[i].pending ? 'This month has not been counted yet: it is being added.' : 'No clear masks for this month (2018 and 2021 are missing so far): switch Count to Observed days.')
@@ -618,7 +627,7 @@ tl.addEventListener('pointermove', e => {
   const i = monthAt(e), t = T();
   if (dragging) { if (i !== state.per[t.key]) go(i); hideTip(); }
   else { const m = t.totals[i]; showTip(e, m.pending ? 'Not available' : `${d1(m.n)} ${units(t)} in`,
-    `${label(t, i)}, land mean${t.days ? (m.pending ? '' : `, of ${d1(m.obs)} observed`) : m.clear_ok ? `, ${d1(m.clear)} clear` : ''}`); }
+    `${label(t, i)}, global land mean${t.days ? (m.pending ? '' : `, of ${d1(m.obs)} observed`) : m.clear_ok ? `, ${d1(m.clear)} clear` : ''}`); }
 });
 tl.addEventListener('pointerup', () => { dragging = false; });
 tl.addEventListener('pointerleave', hideTip);

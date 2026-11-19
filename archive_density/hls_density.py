@@ -112,6 +112,50 @@ PALETTE = {"color": "#0000FF",            # the CSDA pages' USGS / NASA palette 
 REMOTE = "git@github.com:pahbs/hls.git"
 
 
+CMR = "https://cmr.earthdata.nasa.gov/search/granules.json"
+PLATFORMS = {"Landsat 8": ("HLSL30", "LANDSAT-8"), "Landsat 9": ("HLSL30", "LANDSAT-9"),
+             "Sentinel-2A": ("HLSS30", "Sentinel-2A"), "Sentinel-2B": ("HLSS30", "Sentinel-2B"), "Sentinel-2C": ("HLSS30", "Sentinel-2C")}
+
+
+def satellites(last: str = None) -> Path:
+    """Which satellites HLS has granules from, each month: CMR granule counts per platform (HLSL30 / HLSS30 v2.0). The
+    masks do not say which satellite made an observation; this says which ones contributed to the month at all.
+    Saved as STORE/satellites.json {month: {satellite: granules}}."""
+    import calendar
+    import requests
+    from concurrent.futures import ThreadPoolExecutor
+    last = last or f"{int(time.strftime('%Y')) - 1}-12"
+    months = [f"{y}-{m:02d}" for y in range(int(START[:4]), int(last[:4]) + 1) for m in range(1, 13) if START <= f"{y}-{m:02d}" <= last]
+
+    def hits(job):
+        month, sat = job
+        y, m = int(month[:4]), int(month[5:])
+        short, platform = PLATFORMS[sat]
+        span = f"{month}-01T00:00:00Z,{month}-{calendar.monthrange(y, m)[1]:02d}T23:59:59Z"
+        for attempt in range(6):
+            try:
+                r = requests.get(CMR, params={"short_name": short, "version": "2.0", "platform": platform, "temporal": span,
+                                              "page_size": 0}, timeout=60)
+                if r.ok:
+                    return month, sat, int(r.headers.get("CMR-Hits", 0))
+            except requests.exceptions.RequestException:
+                pass
+            time.sleep(2 ** attempt)
+        raise RuntimeError(f"CMR count failed: {month} {sat}")
+
+    out = {m: {} for m in months}
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for month, sat, n in pool.map(hits, [(m, s) for m in months for s in PLATFORMS]):
+            if n:
+                out[month][sat] = n
+    path = STORE / "satellites.json"
+    path.write_text(json.dumps(out))
+    for sat in PLATFORMS:
+        have = [m for m in months if sat in out[m]]
+        print(f"{sat}: {have[0]} to {have[-1]}, {len(have)} months" if have else f"{sat}: none", flush=True)
+    return path
+
+
 def _land(years) -> np.ndarray:
     """Pixels HLS observed at least once in any of these years, per CELL cell (full grid, row 0 at 90 N)."""
     import rasterio
@@ -133,6 +177,8 @@ def build(cell: float = OUT_CELL) -> Path:
     if not years:
         raise SystemExit("nothing aggregated yet")
     land01 = _land(years)
+    sats_path = STORE / "satellites.json"   # satellites(): which satellites contributed each month
+    sats = json.loads(sats_path.read_text()) if sats_path.exists() else {}
     f, cols_out = int(round(cell / CELL)), int(round(360 / cell))
     to_out = lambda idx: (idx // COLUMNS // f) * cols_out + (idx % COLUMNS) // f
     land_out = np.bincount(to_out(np.flatnonzero(land01)), weights=land01[land01 > 0], minlength=cols_out * int(round(180 / cell)))
@@ -172,6 +218,7 @@ def build(cell: float = OUT_CELL) -> Path:
                                 "obs": 0.0, "n": 0.0, "clear_ok": False} for k in months]
     for row in totals:
         row["pending"] = row["mask_days"] == 0
+        row["sats"] = sorted(sats.get(row["month"], {}))
     data_dir = PAGE_DIR / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     files = {"observed": f"hls-observed-{cell:g}deg.bin", "clear": f"hls-clear-{cell:g}deg.bin"}
@@ -210,6 +257,8 @@ if __name__ == "__main__":
     if sys.argv[1] == "aggregate":
         for y in sys.argv[2:]:
             aggregate(int(y))
+    elif sys.argv[1] == "satellites":
+        satellites()
     elif sys.argv[1] == "build":
         build(float(sys.argv[2]) if len(sys.argv) > 2 else OUT_CELL)
     elif sys.argv[1] == "publish":
