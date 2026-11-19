@@ -307,6 +307,12 @@ const d1 = v => (v == null ? '–' : v.toFixed(1));                       // a m
 const fmt = v => (v / (T().div || 1)).toFixed(1);                        // a cell value (stored in 1/div of a day)
 const label = (t, i) => name(t.totals[i].month) + (t.totals[i].month === t.partial ? ' (so far)' : '');
 const sats = m => m.sats || Object.keys(m.sensors || {});   // the satellites that collected in a month (counted stores: listed apart)
+const SHORT = {'Landsat 8': 'L8', 'Landsat 9': 'L9', 'Sentinel-2A': 'S2A', 'Sentinel-2B': 'S2B', 'Sentinel-2C': 'S2C'};
+function starts(t) {   // the month each satellite first contributed: [[month index, satellite], ...]
+  const seen = new Set(), out = [];
+  t.totals.forEach((m, i) => sats(m).forEach(s => { if (!seen.has(s)) { seen.add(s); out.push([i, s]); } }));
+  return out;
+}
 const nsat = n => `${n.toLocaleString()} satellite${n === 1 ? '' : 's'}`;
 
 function combine(t) {   // a combined view: the constellations' counts added cell by cell (strips are distinct)
@@ -407,10 +413,18 @@ function renderLegend(t) {
     el('span', {text: 'The scale stays fixed across months, so months compare directly.'}));
 }
 function renderTimeline(t) {
-  const w = 1200, h = 86, top = 18, base = h - 20, n = t.totals.length, bw = w / n, i0 = state.per[t.key], view = state.view;
+  const w = 1200, h = 100, top = 32, base = h - 20, n = t.totals.length, bw = w / n, i0 = state.per[t.key], view = state.view;
   const values = view === 'month' ? t.totals.map(m => m.n) : t.totals.reduce((a, m) => (a.push((a[a.length - 1] || 0) + m.n), a), []);
   const max = Math.max(1, ...values), y = v => base - (base - top) * v / max, cx = i => i * bw + bw / 2;
   const root = svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', 'aria-hidden': 'true'});
+  // where each satellite began contributing: a dotted line behind the bars (seen only above them), a dot and a short name
+  // in a strip of their own above the month's label
+  starts(t).forEach(([i, s]) => {
+    const x = i * bw + 0.5;
+    root.append(svg('line', {x1: x, x2: x, y1: 12, y2: base, stroke: 'var(--ink-3)', 'stroke-width': 1, 'stroke-dasharray': '1.5 3', opacity: .6}));
+    root.append(svg('circle', {cx: x, cy: 8, r: 2.5, fill: 'var(--ink-3)'}));
+    root.append(svg('text', {x: x + 5, y: 11.5, style: 'font-size:10px;fill:var(--ink-3);letter-spacing:.02em', text: SHORT[s] || s}));
+  });
   if (view === 'month') {
     values.forEach((v, i) => root.append(svg('rect', {x: i * bw + 1, y: y(v), width: Math.max(1, bw - 2), height: base - y(v),
       fill: i === i0 ? 'var(--series)' : 'var(--muted-mark)'})));   // only the month on the map: this view is not cumulative
@@ -613,6 +627,8 @@ function show() {
     ['Clear', 'An observation that day with the pixel clear of cloud, per the daily clear masks. 2018 and 2021 have no clear masks yet.'],
     ['Land', 'Every pixel HLS observed at least once, 2013–2025.'],
     ['Mean revisit', 'The days with masks in the month divided by the land-mean observed days: the typical gap between looks.'],
+    ['Satellites', 'Marks on the timeline show the month each satellite began contributing to HLS (L8, L9: Landsat 8, 9; S2A, S2B, S2C: Sentinel-2), from the HLS granules in NASA CMR. The masks do not say which satellite made each observation.'],
+    ['Known gap', 'From the equator to about 1° N the daily observation masks are nearly empty in every year. Days counted there come from the clear masks only, so observed days read low in that band (and in 2018 and 2021, without clear masks, near zero).'],
     ['Source', `Daily global masks, about 1 km (0.009°), one per day: observation and clear. Counted per 0.1° cell and day, then averaged here per ${t.cell}° cell and month.`]];
   $('guide').replaceChildren(...entries.flatMap(([k, v]) => [el('dt', {text: k}), el('dd', {text: v})]));
   const dot = el('i', {class: 'swatch'}); dot.style.background = t.palette.color;
@@ -626,8 +642,10 @@ tl.addEventListener('pointerdown', e => { dragging = true; tl.setPointerCapture(
 tl.addEventListener('pointermove', e => {
   const i = monthAt(e), t = T();
   if (dragging) { if (i !== state.per[t.key]) go(i); hideTip(); }
-  else { const m = t.totals[i]; showTip(e, m.pending ? 'Not available' : `${d1(m.n)} ${units(t)} in`,
-    `${label(t, i)}, global land mean${t.days ? (m.pending ? '' : `, of ${d1(m.obs)} observed`) : m.clear_ok ? `, ${d1(m.clear)} clear` : ''}`); }
+  else { const m = t.totals[i], joins = starts(t).filter(([k]) => k === i).map(([, s]) => s);
+    showTip(e, m.pending ? 'Not available' : `${d1(m.n)} ${units(t)} in`,
+    `${label(t, i)}, global land mean${t.days ? (m.pending ? '' : `, of ${d1(m.obs)} observed`) : m.clear_ok ? `, ${d1(m.clear)} clear` : ''}`
+      + (joins.length ? ` · ${joins.join(' and ')} ${joins.length > 1 ? 'begin' : 'begins'}` : '')); }
 });
 tl.addEventListener('pointerup', () => { dragging = false; });
 tl.addEventListener('pointerleave', hideTip);

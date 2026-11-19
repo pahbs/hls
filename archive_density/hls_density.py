@@ -70,16 +70,19 @@ def aggregate(year: int) -> Path:
         doy = int(f.stem[-3:])
         with rasterio.open(f) as r:
             a = r.read(1)
-        ever |= a == 1
-        days.append(doy)
-        obs.append(_count(a, grid).ravel().astype(np.uint8))
         cf = SRC / MASKS["clear"] / str(year) / f.name
+        c = None
         if cf.exists():
             with rasterio.open(cf) as r:
                 c = r.read(1)
+            # Observed = the observation mask, or clear (a clear pixel was observed): the observation masks are nearly empty
+            # from the equator to ~1 N in every year, where the clear masks are not (checked 2026-11-19; reported to the author)
+            a = np.where(c == 1, np.uint8(1), a)
             clear_days.append(doy)
-            clear.append(_count(c, grid, also=a).ravel().astype(np.uint8))   # clear only where observed: the clear masks
-            # also mark pixels that were not observed (a line along the equator every day, other seams), 0.07% of clear pixels
+            clear.append(_count(c, grid).ravel().astype(np.uint8))
+        ever |= a == 1
+        days.append(doy)
+        obs.append(_count(a, grid).ravel().astype(np.uint8))
         if k % 30 == 0:
             print(f"{year}: day {doy} ({k + 1} of {len(files)}), {time.time() - started:.0f} s", flush=True)
     land = _count(ever.view(np.uint8), grid).ravel()          # pixels observed at least once this year
