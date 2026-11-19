@@ -140,10 +140,11 @@ def build(cell: float = OUT_CELL) -> Path:
     pos = np.full(land_out.size, -1)
     pos[keep] = np.arange(len(keep))
     land_keep, land_all = land_out[keep], land_out.sum()
-    months = [f"{y}-{m:02d}" for y in years for m in range(1, 13) if f"{y}-{m:02d}" >= START]
+    first_year, last_year = int(START[:4]), max(years + [int(time.strftime("%Y")) - 1])
+    months = [f"{y}-{m:02d}" for y in range(first_year, last_year + 1) for m in range(1, 13) if f"{y}-{m:02d}" >= START]
     obs_out = np.zeros((len(months), len(keep)), np.uint8)
     clear_out = np.zeros_like(obs_out)
-    totals = []
+    totals = {}
     for y in years:
         z = np.load(STORE / f"{y}.npz")
         obs, clear, cells = z["obs"], z["clear"], z["cells"]
@@ -164,8 +165,13 @@ def build(cell: float = OUT_CELL) -> Path:
                 c = np.bincount(at, weights=clear[csel].sum(axis=0, dtype=np.int64), minlength=len(keep))
                 clear_out[i] = np.clip(np.round(c / land_keep * DIV), 0, 255)
                 row["clear"] = round(float(c.sum() / land_all), 3)
-            totals.append(row)
+            totals[key] = row
         print(f"{y}: done", flush=True)
+    # every month on the axis; a year not counted yet is marked so (pending), not shown as zero
+    totals = [totals.get(k) or {"month": k, "mask_days": 0, "month_days": calendar.monthrange(int(k[:4]), int(k[5:]))[1], "sensors": {},
+                                "obs": 0.0, "n": 0.0, "clear_ok": False} for k in months]
+    for row in totals:
+        row["pending"] = row["mask_days"] == 0
     data_dir = PAGE_DIR / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     files = {"observed": f"hls-observed-{cell:g}deg.bin", "clear": f"hls-clear-{cell:g}deg.bin"}
