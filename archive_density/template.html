@@ -547,11 +547,11 @@ function render() {
   const missing = t.totals[i].month < t.fetched_from || !!t.totals[i].pending;
   $('month').replaceChildren(name(t.totals[i].month), now ? el('small', {text: ' so far'}) : missing ? el('small', {text: G().totals[i].pending ? ' not counted yet' : ' no clear masks'}) : '');
   const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
-  // satellites over the whole record and in the month on the map (from NASA CMR: HLS granules per platform); then global land
+  // satellites contributing in the month on the map (from NASA CMR: HLS granules per platform); then global land
   // means for the month on the map: observed days, clear days, the clear share, and the mean revisit (days between looks)
-  const fleet = new Set(t.totals.flatMap(sats)).size, k = sats(m).length;
+  const k = sats(m).length;
   $('answer').replaceChildren(
-    tile(fleet ? fleet.toLocaleString() : '–', `satellite${fleet === 1 ? '' : 's'} contributing to archive (${k} in ${label(t, i)})`, 'hero'),
+    tile(k ? k.toLocaleString() : '–', `satellite${k === 1 ? '' : 's'} contributing to archive in ${label(t, i)}`, 'hero'),
     tile(missing && !t.days ? '–' : d1(m.obs), `observed days in ${label(t, i)}, global land mean`),
     tile(m.clear_ok ? d1(m.clear) : '–', m.clear_ok ? 'clear days, global land mean' : 'clear days: no clear masks this month'),
     tile(m.clear_ok && m.obs ? `${Math.round(100 * m.clear / m.obs)}%` : '–', 'of observed days clear, global land mean'),
@@ -560,8 +560,8 @@ function render() {
   $('mapNote').textContent = !t.days && missing ? 'This month has not been counted yet: it is being added.'
     : t.days && missing ? (G().totals[i].pending ? 'This month has not been counted yet: it is being added.' : 'No clear masks for this month (2018 and 2021 are missing so far): switch Count to Observed days.')
     : state.metric === 'days' && !t.days ? 'Clear days are not available yet, so it shows observed days.'
-    : t.days ? 'The days a pixel was observed clear (Landsat or Sentinel-2), averaged over the land pixels in each cell. Point at a cell for its value.'
-    : 'The days a pixel was observed (Landsat or Sentinel-2, clear or not), averaged over the land pixels in each cell. Point at a cell for its value.';
+    : t.days ? `The days a pixel was observed clear (Landsat or Sentinel-2), averaged over the land pixels in each cell. Point at a ${t.cell}° cell for its value.`
+    : `The days a pixel was observed (Landsat or Sentinel-2, clear or not), averaged over the land pixels in each cell. Point at a ${t.cell}° cell for its value.`;
   drawMap(); updateGlobe(); renderLegend(t); renderTimeline(t); renderTable(t);
 }
 function go(i) { if (!T().ck) return; state.per[T().key] = i; render(); }
