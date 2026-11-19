@@ -364,7 +364,8 @@ function cumAt(t, i) {   // running total up to month i: the nearest earlier che
 const SHARED = {n: {month: [1, 300], total: [1, 20000]}, days: {month: [1, 31], total: [1, 1000]}};
 function scaleOf(t) {
   if (state.scale === 'shared') { const [min, max] = SHARED[t.days ? 'days' : 'n'][state.view]; return {min, max}; }
-  return state.view === 'month' ? {min: t.minMonth, max: t.maxMonth} : {min: t.minTotal, max: t.maxTotal};
+  const g = G();   // observed and clear share the observed days' limits: a color means the same days in both, so they compare
+  return state.view === 'month' ? {min: g.minMonth, max: g.maxMonth} : {min: g.minTotal, max: g.maxTotal};
 }
 function step(v, max, min = 1, n = mapRamp().length) { return Math.max(0, Math.min(n - 1, Math.floor(Math.log(v / min) / Math.log((max + 1) / min) * n))); }
 let land = null, landTheme = null;
@@ -408,7 +409,7 @@ function valueAt(lon, lat) {
 function renderLegend(t) {
   const {min, max} = scaleOf(t), ramp = mapRamp();
   const steps = ramp.length, edge = k => Math.max(1, Math.round(min * Math.exp(k / steps * Math.log((max + 1) / min))));
-  const what = (t.days ? 'Clear days' : 'Observed days') + (state.view === 'month' ? '' : ', summed');
+  const what = 'Days' + (state.view === 'month' ? '' : ', summed');   // the same words for observed and clear: the legend does not move
   $('legend').replaceChildren(el('span', {text: `${what} per pixel, mean in a ${t.cell}° cell:`}), el('span', {text: (min > 1 ? '≤ ' : '') + fmt(edge(0))}),
     el('span', {class: 'scale'}, ramp.map(c => { const i = el('i'); i.style.background = c; return i; })), el('span', {text: `${fmt(edge(steps))}+`}),
     el('span', {text: 'The scale stays fixed across months, so months compare directly.'}));
@@ -622,7 +623,7 @@ function show() {
       .catch(() => { $('mapNote').textContent = 'These maps load on the published page: https://pahbs.github.io/hls/'; });
     return;
   }
-  prepare(t); render();
+  prepare(g0); prepare(t); render();   // the observed days set the color limits for both counts
   const entries = [['A cell shows', `The mean, over the land pixels in a ${t.cell}° square, of the days in the month on which a pixel was observed (Count: Observed days) or observed clear (Count: Clear days). 0 to 31.`],
     ['Observed', 'Any HLS observation that day, from Landsat 8 / 9 (L30) or Sentinel-2 (S30), whatever the cloud. Landsat and Sentinel-2 are counted together.'],
     ['Clear', 'An observation that day with the pixel clear of cloud, per the daily clear masks. 2018 and 2021 have no clear masks yet.'],
