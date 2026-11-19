@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HLS Archive Density</title>
-<meta name="description" content="HLS Archive Density: how often Harmonized Landsat and Sentinel-2 observes the land, and how often clear, each month since 2013">
-<meta property="og:title" content="HLS Archive Density">
+<title>Archive Density: Harmonized Landsat & Sentinel-2</title>
+<meta name="description" content="Archive Density: Harmonized Landsat & Sentinel-2: how often Harmonized Landsat and Sentinel-2 observes the land, and how often clear, each month since 2013">
+<meta property="og:title" content="Archive Density: Harmonized Landsat & Sentinel-2">
 <meta property="og:description" content="Observed and clear days of Harmonized Landsat and Sentinel-2, each month since 2013">
 <style>
 .viz-root {
@@ -222,15 +222,15 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 </head>
 <body>
 <div class="viz-root"><div class="wrap">
-<h1>HLS Archive Density</h1>
-<p class="sub">An interactive visualization that explains how often Harmonized Landsat and Sentinel-2 (HLS) observes the land, and how often these observations are clear, each month since 2013 </p>
+<h1>Archive Density: Harmonized Landsat & Sentinel-2</h1>
+<p class="sub">An interactive visualization to explore the density and frequency of observations over land from Harmonized Landsat and Sentinel-2 (HLS), and the subset of those observations that are clear, each month since 2013 </p>
 <table class="people" aria-label="Contributors">
   <thead><tr><th scope="col">Contributor</th><th scope="col">Affiliation</th><th scope="col">Role</th><th scope="col">Contact</th></tr></thead>
   <tbody>
     <tr><td><span class="person">Paul Montesano, PhD</span></td><td>NASA Goddard Space Flight Center; Earth System Science Interdisciplinary Center, U. Maryland-College Park</td>
       <td>Visualization</td><td><a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a></td></tr>
     <tr><td><span class="person">Qiang Zhou, PhD</span></td><td>NASA Goddard Space Flight Center; SSAI, Inc.</td>
-      <td>HLS daily observation and clear masks</td><td class="none">–</td></tr>
+      <td>HLS daily observation and clear masks</td><td><a href="mailto:qiang.zhou@nasa.gov">qiang.zhou@nasa.gov</a></td></tr>
   </tbody>
 </table>
 <p class="note" style="margin:8px 0 0"><span id="updated"></span></p>
@@ -249,7 +249,7 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 <div class="answer" id="answer"></div>
 <div class="card">
   <div class="maphead"><div><h2 id="mapTitle"></h2><p class="note" id="mapNote"></p><div class="mapmode" role="group" aria-label="Map view"><button type="button" id="mStatic" class="on">Static map</button><button type="button" id="mGlobe">Interactive globe</button></div></div><div class="legend" id="legend"></div></div>
-  <div class="mapwrap"><canvas id="map" width="1208" height="520" role="img" aria-label="World map of HLS observed or clear days"></canvas><div id="globe" hidden><div class="globebar"><span role="group" aria-label="Projection"><button type="button" id="gGlobe" class="on">Globe</button><button type="button" id="gFlat">Flat</button></span><span role="group" aria-label="Basemap"><button type="button" id="gGray" class="on">Gray land</button><button type="button" id="gImagery">Imagery</button></span></div></div></div>
+  <div class="mapwrap"><canvas id="map" width="1208" height="520" role="img" aria-label="World map of HLS observed or clear days"></canvas><div id="globe" hidden><div class="globebar"><span role="group" aria-label="Projection"><button type="button" id="gGlobe" class="on">Globe</button><button type="button" id="gFlat">Flat</button></span></div></div></div>
 </div>
 <div class="cols">
   <div class="card"><h2>By month</h2><p class="note" id="tableNote"></p><div class="scroll monthbox" id="table"></div></div>
@@ -470,9 +470,9 @@ function renderTable(t) {
     el('th', {text: 'Clear days'}), el('th', {text: 'Clear share'}), el('th', {text: 'Days with masks'}))), el('tbody', {}, rows)));
   $('tableNote').textContent = 'Land means: the days a land pixel was observed (and clear) in the month. Newest first; select a month to show it on the map.';
 }
-// ---- Interactive globe: MapLibre GL (loaded on first use), the same cells drawn into a Web Mercator image, gray land or imagery
+// ---- Interactive globe: MapLibre GL (loaded on first use), the same cells drawn into a Web Mercator image, over gray land
 const MLIB = 'https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl', MERC = 85.05113, CORNERS = [[-180, MERC], [180, MERC], [180, -MERC], [-180, -MERC]];
-const GL = {on: false, map: null, ready: false, loading: null, proj: 'globe', base: 'gray'};
+const GL = {on: false, map: null, ready: false, loading: null, proj: 'globe'};
 function loadMaplibre() {
   if (window.maplibregl) return Promise.resolve();
   return GL.loading = GL.loading || new Promise((ok, no) => {
@@ -504,8 +504,6 @@ function updateGlobe() {
   GL.map.getSource('cells').updateImage({url: mercatorImage(), coordinates: CORNERS});
   GL.map.setPaintProperty('bg', 'background-color', css('--surface-2'));   // the ocean: a shade off the page, so the globe's edge shows
   GL.map.setPaintProperty('land', 'fill-color', css('--land'));
-  GL.map.setLayoutProperty('imagery', 'visibility', GL.base === 'imagery' ? 'visible' : 'none');
-  GL.map.setLayoutProperty('land', 'visibility', GL.base === 'imagery' ? 'none' : 'visible');
 }
 function setMapMode(globe) {
   GL.on = globe; $('mStatic').classList.toggle('on', !globe); $('mGlobe').classList.toggle('on', globe);
@@ -516,11 +514,8 @@ function setMapMode(globe) {
     GL.map = new maplibregl.Map({container: 'globe', center: [10, 25], zoom: 1.75, maxZoom: 7, attributionControl: {compact: true},
       style: {version: 8, projection: {type: GL.proj},
         sources: {land: {type: 'geojson', data: landGeoJSON()},
-          imagery: {type: 'raster', tileSize: 256, maxzoom: 17, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
-                    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}']},
           cells: {type: 'image', url: mercatorImage(), coordinates: CORNERS}},
         layers: [{id: 'bg', type: 'background', paint: {'background-color': css('--surface-2')}},
-          {id: 'imagery', type: 'raster', source: 'imagery', layout: {visibility: 'none'}},
           {id: 'land', type: 'fill', source: 'land', paint: {'fill-color': css('--land')}},
           {id: 'cells', type: 'raster', source: 'cells', paint: {'raster-resampling': 'nearest', 'raster-fade-duration': 0}}]}});
     GL.map.addControl(new maplibregl.NavigationControl({visualizePitch: true}), 'top-right');
@@ -538,8 +533,6 @@ $('mGlobe').onclick = () => setMapMode(true);
 const pick = (on, off, apply) => { $(on).classList.add('on'); $(off).classList.remove('on'); apply(); };
 $('gGlobe').onclick = () => pick('gGlobe', 'gFlat', () => { GL.proj = 'globe'; GL.map && GL.map.setProjection({type: 'globe'}); });
 $('gFlat').onclick = () => pick('gFlat', 'gGlobe', () => { GL.proj = 'mercator'; GL.map && GL.map.setProjection({type: 'mercator'}); });
-$('gGray').onclick = () => pick('gGray', 'gImagery', () => { GL.base = 'gray'; updateGlobe(); });
-$('gImagery').onclick = () => pick('gImagery', 'gGray', () => { GL.base = 'imagery'; updateGlobe(); });
 function render() {
   if (!T().ck) return;   // still loading: show() renders once the maps arrive, with whatever view was picked meanwhile
   const t = T(), i = state.per[t.key], m = t.totals[i];
