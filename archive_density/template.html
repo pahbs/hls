@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HLS Archive Density</title>
+<meta name="description" content="HLS Archive Density: how often Harmonized Landsat and Sentinel-2 observes the land, and how often clear, each month since 2013">
+<meta property="og:title" content="HLS Archive Density">
+<meta property="og:description" content="Observed and clear days of Harmonized Landsat and Sentinel-2, each month since 2013">
+<style>
+.viz-root {
+  color-scheme: light;
+  --surface: #fcfcfb; --surface-2: #f3f2ee; --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #6f6e69; --grid: #e1e0d9; --axis: #c3c2b7;
+  --series: #2a78d6; --series-2: #eb6834; --check: #6da7ec; --muted-mark: #d4d3cb; --land: #e9e8e2; --link: #1c5cab; --ok: #006300; --short: #a13a12;
+  --ring: #0b0b0b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #a3a297; --grid: #2c2c2a; --axis: #383835;
+    --series: #3987e5; --series-2: #d95926; --check: #256abf; --muted-mark: #44433f; --land: #2b2b29; --link: #86b6ef; --ok: #0ca30c; --short: #ec835a;
+    --ring: #f0efec;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --surface: #1a1a19; --surface-2: #232322; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #a3a297; --grid: #2c2c2a; --axis: #383835;
+  --series: #3987e5; --series-2: #d95926; --check: #256abf; --muted-mark: #44433f; --land: #2b2b29; --link: #86b6ef; --ok: #0ca30c; --short: #ec835a;
+  --ring: #f0efec;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root { background: var(--surface); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh; padding: 24px 20px 48px; }
+.wrap { max-width: 1240px; margin: 0 auto; }
+h1 { font-size: 24px; margin: 0 0 4px; font-weight: 650; }
+h2 { font-size: 17px; margin: 0 0 2px; font-weight: 620; }
+h3 { font-size: 13px; margin: 0 0 4px; font-weight: 620; }
+.sub { color: var(--ink-2); margin: 0; }
+.note { color: var(--ink-2); font-size: 12.5px; margin: 0 0 10px; }
+a { color: var(--link); }
+code { font-size: .92em; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 18px 0 0; border-bottom: 1px solid var(--grid); }
+.tabs button { background: none; border: 0; border-bottom: 3px solid transparent; color: var(--ink-2); font: inherit; padding: 8px 14px;
+  cursor: pointer; text-align: left; }
+.tabs button b { display: block; font-weight: 620; color: inherit; }
+.tabs button span { font-size: 12px; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--series); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--grid);
+  margin-bottom: 18px; position: sticky; top: 0; background: var(--surface); z-index: 5; }
+.filters .lead { font-weight: 620; }
+.filters label { font-size: 13px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
+.filters label.off { opacity: .55; }
+.filters output { color: var(--ink); font-variant-numeric: tabular-nums; min-width: 34px; font-weight: 600; }
+input[type=range] { width: 92px; accent-color: var(--series); }
+select { font: inherit; font-size: 13px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); }
+.answer { display: grid; grid-template-columns: minmax(250px, 1.3fr) repeat(3, minmax(140px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.tile { background: var(--surface-2); border-radius: 10px; padding: 12px 16px; }
+.tile .v { font-size: 24px; font-weight: 650; }
+.tile .k { font-size: 12.5px; color: var(--ink-2); }
+.tile.hero .v { font-size: 48px; line-height: 1.05; }
+.card { background: var(--surface); border: 1px solid var(--grid); border-radius: 12px; padding: 16px; margin-bottom: 18px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.cols .card { margin-bottom: 0; min-width: 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { font-size: 12px; font-weight: 600; color: var(--ink-2); text-align: left; }
+.score { width: 100%; margin-top: 8px; }
+.score th, .score td { padding: 3px 6px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+.score th.n, .score td.n { text-align: right; }
+.score td.site { max-width: 230px; overflow: hidden; text-overflow: ellipsis; }
+.score tbody tr { cursor: pointer; }
+.score tbody tr:hover td.site, .score tbody tr:focus td.site { text-decoration: underline; }
+.score tbody tr.sel td { background: var(--surface-2); }
+.score .heat { text-align: center; min-width: 40px; border-left: 2px solid var(--surface); }
+.score .good { font-weight: 650; font-size: 15px; }
+.score .months { padding: 0 0 0 10px; }
+.strip { display: flex; gap: 1px; }
+.strip i { display: block; width: 12px; height: 18px; border-radius: 2px; background: var(--surface-2); }
+.strip.head i { height: auto; background: none; font-style: normal; font-size: 11px; color: var(--ink-3); overflow: visible; white-space: nowrap; }
+.status { font-size: 12.5px; }
+.status.ok { color: var(--ok); }
+.status.short { color: var(--short); }
+.status.none { color: var(--ink-3); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); margin: 10px 0 0; align-items: center; }
+.ramp { display: inline-flex; gap: 1px; vertical-align: middle; margin: 0 6px; }
+.ramp i { width: 18px; height: 10px; display: block; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 4px; }
+.dot { border-radius: 50%; }
+.reason { display: grid; grid-template-columns: 170px 1fr 54px; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
+.reason .track { background: var(--surface-2); height: 12px; border-radius: 0 4px 4px 0; }
+.reason .bar { background: var(--muted-mark); height: 12px; border-radius: 0 4px 4px 0; }
+.reason.good .bar { background: var(--series); }
+.reason.check .bar { background: var(--check); }
+.status.check { color: var(--link); }
+.reason .num { text-align: right; font-variant-numeric: tabular-nums; }
+.hist { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.hist > div { min-width: 0; }
+svg { display: block; max-width: 100%; }
+svg text { fill: var(--ink-2); font-size: 11px; }
+.empty { color: var(--ink-3); font-size: 13px; padding: 34px 0; text-align: center; background: var(--surface-2); border-radius: 8px; }
+.pick { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 22px 0 10px; }
+.pick h2 { margin: 0; }
+button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); cursor: pointer; }
+#list { max-height: 420px; overflow-y: auto; border-bottom: 1px solid var(--grid); }
+.list { width: 100%; font-size: 13px; }
+.list thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.list th, .list td { padding: 4px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; text-align: right; }
+.list th:first-child, .list td:first-child, .list th.t, .list td.t { text-align: left; }
+.list td.id { font-size: 12px; color: var(--ink-2); max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.guide { display: grid; grid-template-columns: 170px 1fr; gap: 6px 14px; font-size: 13.5px; margin: 8px 0 0; }
+.guide dt { color: var(--ink-2); }
+.guide dd { margin: 0; }
+.levels { font-size: 13px; margin-top: 12px; width: 100%; }
+.levels th, .levels td { padding: 4px 8px; border-bottom: 1px solid var(--grid); text-align: left; }
+.levels .n { text-align: right; }
+.warn { background: var(--surface-2); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 14px; }
+#tip { position: fixed; z-index: 20; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--axis); border-radius: 8px;
+  padding: 7px 10px; font-size: 12.5px; max-width: 280px; display: none; box-shadow: 0 2px 8px rgba(0,0,0,.14); }
+#tip b { display: block; font-size: 15px; font-weight: 650; }
+@media (max-width: 860px) { .answer, .cols { grid-template-columns: 1fr; } .hist { grid-template-columns: 1fr 1fr; } }
+
+.controls { gap: 10px 18px; }
+.controls input[type=range] { width: min(420px, 40vw); }
+.month { font-size: 20px; font-weight: 650; width: 12em; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ink); }
+.month small { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.timeline { flex-basis: 100%; cursor: pointer; touch-action: none; outline-offset: 3px; border-radius: 6px; }
+.timeline:focus { outline: none; }
+[hidden] { display: none !important; }
+.timeline:focus-visible { outline: 2px solid var(--series); }
+.timeline svg text { font-size: 11px; }
+.tabs .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+.tabs button[aria-selected="true"] { color: var(--ink); }
+button.play { min-width: 84px; }
+.mapwrap { position: relative; }
+canvas { display: block; width: 100%; height: auto; border-radius: 8px; background: var(--surface); border: 1px solid var(--grid); }
+.viz-root { --land: #dcdbd3; }
+:root[data-theme="dark"] .viz-root { --land: #34342f; }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .viz-root { --land: #34342f; } }
+.scale { display: inline-flex; align-items: center; gap: 1px; margin: 0 6px; vertical-align: middle; }
+.scale i { display: block; width: 26px; height: 10px; }
+.ticks { display: inline-flex; margin-left: 6px; }
+.bars rect.hit { cursor: pointer; }
+.monthtable { width: 100%; font-size: 13px; }
+.monthtable th, .monthtable td { padding: 3px 8px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; }
+.monthtable th:first-child, .monthtable td:first-child { text-align: left; }
+.monthtable tbody tr { cursor: pointer; }
+.monthtable tr.sel td { background: var(--surface-2); font-weight: 600; }
+.monthbox { max-height: 300px; overflow-y: auto; }
+.monthtable thead th { position: sticky; top: 0; background: var(--surface); }
+/* a vendor whose catalog access is not in place yet */
+#pending { display: none; } .is-pending #pending { display: block; }
+.vtag { display: inline-block; white-space: nowrap; padding: 1px 10px; border-radius: 9999px; font-weight: 650; }
+.is-pending .controls, .is-pending #answer, .is-pending .card:not(#pending), .is-pending .cols { display: none; }
+/* the guide's heading: the affiliation as in its tab (a dot in its color, the name in bold), then the constellation */
+.readhead { font-weight: 400; }
+.readhead b { font-weight: 700; }
+.readhead .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 6px 0 2px; vertical-align: 1px; }
+/* compact summary tiles: the number, then its label beside it */
+.answer { gap: 10px; margin-bottom: 14px; }
+.tile { display: flex; align-items: baseline; gap: 4px 8px; padding: 8px 12px; }
+.tile .v { font-size: 18px; font-weight: 650; white-space: nowrap; line-height: 1.2; }
+.tile.hero .v { font-size: 26px; line-height: 1.1; }
+.tile .k { font-size: 12.5px; line-height: 1.35; }
+/* "Last updated": a neutral ink pill (no affiliation hue); the age is added when it is over a day, and flagged past a week */
+.updated { display: inline-block; padding: 1px 9px; border-radius: 9999px; background: var(--ink); color: var(--surface); font-weight: 600; font-size: 11.5px; white-space: nowrap; }
+.updated.stale { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+/* the map's heading on the left, its legend on the right, above the map */
+.maphead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 6px 24px; margin-bottom: 8px; }
+.maphead h2 { margin-bottom: 2px; }
+.maphead .note { margin: 0; }
+.maphead > div:first-child { flex: 1 1 380px; min-width: 0; }
+.maphead .legend { flex: 0 1 560px; margin: 4px 0 0; justify-content: flex-end; text-align: right; }
+@media (max-width: 860px) { .maphead .legend { justify-content: flex-start; max-width: none; } }
+/* a commercial tab while commercial data is withheld (archive_density.py commercial hide) */
+.tabs button.off { opacity: .4; cursor: not-allowed; }
+/* the interactive globe (MapLibre GL, loaded when first asked for): same cells and colors as the static map */
+.mapmode { display: inline-flex; margin-top: 8px; }
+.mapmode button, .globebar button { font: inherit; font-size: 12.5px; padding: 3px 10px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.mapmode button:first-child, .globebar span button:first-child { border-radius: 6px 0 0 6px; }
+.mapmode button:last-child, .globebar span button:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+.mapmode button.on, .globebar button.on { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+#globe { position: relative; height: 560px; border-radius: 8px; overflow: hidden; background: var(--surface); }
+#globe[hidden] { display: none; }
+.globebar { position: absolute; z-index: 2; left: 10px; top: 10px; display: flex; gap: 8px; }
+.globebar button { background: color-mix(in oklab, var(--surface) 88%, transparent); }
+/* the controls in fixed places on every tab: Play and the month, the four choices on line 1; the constellation picker (vendors with
+   several) on line 2, which keeps its height on single-constellation tabs; then the timeline */
+.filters.controls { display: grid; grid-template-columns: max-content 190px 230px max-content max-content 1fr; align-items: center; gap: 10px 22px; }
+.filters.controls .speed { grid-column: 1 / 3; grid-row: 2; }
+.filters.controls .scale { grid-column: 6; grid-row: 1; justify-self: end; }
+.filters.controls .timeline { grid-column: 1 / -1; }
+@media (max-width: 1000px) { .filters.controls { display: flex; } }
+/* the four summary boxes: equal width and height, number and label on one line */
+.answer { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+.tile { align-items: baseline; white-space: nowrap; overflow: hidden; min-height: 44px; }
+.tile .v, .tile.hero .v { font-size: 20px; }
+.tile .k { font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body>
+<div class="viz-root"><div class="wrap">
+<h1>HLS Archive Density</h1>
+<p class="sub">How often Harmonized Landsat and Sentinel-2 (HLS) observes the land, and how often it sees it clear, each month since 2013</p>
+<p class="note" style="margin:4px 0 0">Paul Montesano, PhD · NASA Goddard Space Flight Center; ESSIC · CSDA Multispectral Optical SME Group ·
+  <a href="mailto:paul.m.montesano@nasa.gov">paul.m.montesano@nasa.gov</a> · Daily HLS observation and clear masks from the HLS revisit analysis (NASA GSFC) · <span id="updated"></span></p>
+<div class="warn" style="margin:12px 0 0;font-size:13.5px"><b>Suggested use:</b> use this page to see where and when HLS observes the land, and where clear views are rare. Drag along the timeline or press Play to watch the seasons and the satellites come and go.</div>
+<div class="tabs" id="tabs" role="tablist"></div>
+<div class="card" id="pending" style="margin-top:18px"></div>
+<div class="filters controls">
+  <button class="action play" id="play">▶ Play</button>
+  <span class="month" id="month"></span>
+  <label id="groupWrap">Constellation <select id="group" aria-label="Constellation"></select></label>
+  <label>Show <select id="view" aria-label="Show"><option value="month">This month</option><option value="total">Running total</option></select></label>
+  <label>Count <select id="metric" aria-label="Count"><option value="n">Observed days</option><option value="days">Clear days</option></select></label>
+  <label class="speed">Speed <select id="speed" aria-label="Speed"><option value="1200">Slow</option><option value="600" selected>Medium</option><option value="250">Fast</option></select></label>
+  <label class="scale" hidden>Scale <select id="scale" aria-label="Scale"><option value="own">This constellation</option><option value="shared">Shared, all constellations (log)</option></select></label>
+  <div class="timeline" id="timeline" role="slider" tabindex="0" aria-label="Month"></div>
+</div>
+<div class="answer" id="answer"></div>
+<div class="card">
+  <div class="maphead"><div><h2 id="mapTitle"></h2><p class="note" id="mapNote"></p><div class="mapmode" role="group" aria-label="Map view"><button type="button" id="mStatic" class="on">Static map</button><button type="button" id="mGlobe">Interactive globe</button></div></div><div class="legend" id="legend"></div></div>
+  <div class="mapwrap"><canvas id="map" width="1208" height="520" role="img" aria-label="World map of HLS observed or clear days"></canvas><div id="globe" hidden><div class="globebar"><span role="group" aria-label="Projection"><button type="button" id="gGlobe" class="on">Globe</button><button type="button" id="gFlat">Flat</button></span><span role="group" aria-label="Basemap"><button type="button" id="gGray" class="on">Gray land</button><button type="button" id="gImagery">Imagery</button></span></div></div></div>
+</div>
+<div class="cols">
+  <div class="card"><h2>By month</h2><p class="note" id="tableNote"></p><div class="scroll monthbox" id="table"></div></div>
+  <div class="card"><h2 class="readhead" id="readTitle">How to read this map</h2><dl class="guide" id="guide"></dl></div>
+</div>
+<p class="note" id="foot" style="margin-top:18px"></p>
+</div><div id="tip"></div></div>
+<script type="application/json" id="data">/*DATA*/null</script>
+<script>
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const $ = id => document.getElementById(id);
+function showUpdated(text) {   // "Last updated: 13 Nov 2026", with the age once it is over a day; past a week it is flagged
+  const days = Math.floor((Date.now() - new Date(text).getTime()) / 864e5), node = $('updated');
+  node.className = 'updated' + (days > 7 ? ' stale' : '');
+  node.textContent = `Last updated: ${text}` + (days >= 2 && days < 1e4 ? ` · ${days} days ago` : '') + (days > 7 ? ' · due for an update' : '');
+}
+const mapRamp = () => TAB().palette[dark() ? 'map_dark' : 'map_light'];
+function applyPalette() {
+  const root = document.querySelector('.viz-root'), r = TAB().palette[dark() ? 'dark' : 'light'];
+  root.style.setProperty('--series', r[4]); root.style.setProperty('--check', r[2]);
+}
+const TOP = 84, BOTTOM = -62;   // latitudes shown
+const dark = () => getComputedStyle(document.querySelector('.viz-root')).colorScheme === 'dark';
+const css = name => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(name).trim();
+const state = {tab: 0, view: 'month', timer: null, per: {}, group: {}, metric: 'n', scale: 'own'};
+function el(tag, props = {}, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') node.className = v; else if (k === 'text') node.textContent = v;
+    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v); else node.setAttribute(k, v);
+  }
+  kids.flat().filter(c => c != null).forEach(c => node.append(c));
+  return node;
+}
+function svg(tag, props = {}) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(props)) { if (k === 'text') node.textContent = v; else if (k.startsWith('on')) node.addEventListener(k.slice(2), v); else node.setAttribute(k, v); }
+  return node;
+}
+function showTip(e, value, label) {
+  const t = $('tip'); t.replaceChildren(el('b', {text: value}), el('span', {text: label})); t.style.display = 'block';
+  t.style.left = Math.min(e.clientX + 14, innerWidth - t.offsetWidth - 8) + 'px';
+  t.style.top = Math.max(e.clientY - t.offsetHeight - 10, 6) + 'px';
+}
+const hideTip = () => { $('tip').style.display = 'none'; };
+const TAB = () => DATA.tabs[state.tab];
+const G = () => TAB().groups[state.group[state.tab] || 0];   // the constellation picked
+// the constellation shown: its acquisitions, or its days with an acquisition (a view over the same group, with its own scale)
+const T = () => { const g = G();
+  return state.metric === 'days' && g.dayFrames ? (g.dayView ||= {...g, frames: g.dayFrames, totals: g.clearTotals, ck: undefined, last: undefined, days: true}) : g; };
+const name = m => new Date(`${m}-15`).toLocaleDateString('en-US', {month: 'short', year: 'numeric'});
+const units = t => t.days ? 'clear days' : 'observed days';
+const d1 = v => (v == null ? '–' : v.toFixed(1));                       // a mean number of days
+const fmt = v => (v / (T().div || 1)).toFixed(1);                        // a cell value (stored in 1/div of a day)
+const label = (t, i) => name(t.totals[i].month) + (t.totals[i].month === t.partial ? ' (so far)' : '');
+const sats = m => m.sats || Object.keys(m.sensors || {});   // the satellites that collected in a month (counted stores: listed apart)
+const nsat = n => `${n.toLocaleString()} satellite${n === 1 ? '' : 's'}`;
+
+function combine(t) {   // a combined view: the constellations' counts added cell by cell (strips are distinct)
+  const parts = TAB().groups.filter(g => t.parts.includes(g.constellation));
+  t.frames = parts[0].frames.map((_, i) => {
+    const sum = new Map();
+    parts.forEach(g => { const f = g.frames[i]; for (let k = 0; k < f.length; k += 2) sum.set(f[k], (sum.get(f[k]) || 0) + f[k + 1]); });
+    return [...sum].flat();
+  });
+  t.totals = parts[0].totals.map((m, i) => {
+    const sensors = {};
+    parts.forEach(g => Object.entries(g.totals[i].sensors).forEach(([k, v]) => { sensors[k] = (sensors[k] || 0) + v; }));
+    return {month: m.month, n: parts.reduce((s, g) => s + g.totals[i].n, 0), cells: t.frames[i].length / 2, sensors,
+            sats: [...new Set(parts.flatMap(g => sats(g.totals[i])))],
+            clear: parts.reduce((s, g) => s + g.totals[i].clear, 0)};
+  });
+  ['vendor', 'cell', 'columns', 'partial', 'palette'].forEach(k => { t[k] = parts[0][k]; });
+}
+function prepare(t) {
+  if (t.parts && !t.frames) combine(t);
+  if (t.ck) return;
+  // Running totals: a full grid every 12 months only (fine grids are large), the months between added up when shown
+  const size = t.columns * Math.round(180 / t.cell), running = new Int32Array(size);
+  t.ck = new Map();
+  t.frames.forEach((f, i) => { for (let k = 0; k < f.length; k += 2) running[f[k]] += f[k + 1]; if (i % 12 === 11) t.ck.set(i, running.slice()); });
+  t.last = {i: t.frames.length - 1, a: running};
+  // a percentile from at most ~200,000 values: fine grids have millions
+  const sample = (arrays, pick) => { const n = arrays.reduce((s, a) => s + a.length, 0), every = Math.max(1, Math.floor(n / 200000)), out = [];
+    let j = 0; arrays.forEach(a => { for (let k = 0; k < a.length; k++) if (pick(a, k) && (j++ % every === 0)) out.push(a[k]); }); return out; };
+  const quantile = (values, q) => { const s = values.sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : 1; };
+  // each scale spans this constellation's own counts, from the 5th to the 99.5th percentile, so dense ones still show detail
+  const monthly = sample(t.frames, (a, k) => k % 2), total = sample([running], (a, k) => a[k] > 0);
+  t.maxMonth = Math.max(2, quantile(monthly, .995)); t.minMonth = Math.max(1, Math.min(t.maxMonth / 2, quantile(monthly, .05)));
+  t.maxTotal = Math.max(2, quantile(total, .995)); t.minTotal = Math.max(1, Math.min(t.maxTotal / 2, quantile(total, .05)));
+  const full = t.totals.filter(m => m.month !== t.partial);
+  state.per[t.key] = state.per[t.key] ?? Math.max(0, full.length - 1);
+}
+function cumAt(t, i) {   // running total up to month i: the nearest earlier checkpoint plus the months since
+  if (t.last && t.last.i === i) return t.last.a;
+  let k = i - (i % 12) - 1, a;
+  if (t.last && t.last.i < i && t.last.i > k) { k = t.last.i; a = t.last.a.slice(); }
+  else a = k >= 0 ? t.ck.get(k).slice() : new Int32Array(t.columns * Math.round(180 / t.cell));
+  for (let m = k + 1; m <= i; m++) { const f = t.frames[m]; for (let j = 0; j < f.length; j += 2) a[f[j]] += f[j + 1]; }
+  t.last = {i, a};
+  return a;
+}
+// Shared scale: one set of limits for every constellation and tab (logarithmic), so shades compare across them
+const SHARED = {n: {month: [1, 300], total: [1, 20000]}, days: {month: [1, 31], total: [1, 1000]}};
+function scaleOf(t) {
+  if (state.scale === 'shared') { const [min, max] = SHARED[t.days ? 'days' : 'n'][state.view]; return {min, max}; }
+  return state.view === 'month' ? {min: t.minMonth, max: t.maxMonth} : {min: t.minTotal, max: t.maxTotal};
+}
+function step(v, max, min = 1) { return Math.max(0, Math.min(5, Math.floor(Math.log(v / min) / Math.log((max + 1) / min) * 6))); }
+let land = null, landTheme = null;
+function drawLand(w, h) {
+  const theme = dark();
+  if (land && landTheme === theme) return land;
+  land = document.createElement('canvas'); land.width = w; land.height = h; landTheme = theme;
+  const c = land.getContext('2d'), sx = w / 360, sy = h / (TOP - BOTTOM);
+  c.fillStyle = css('--land'); c.setTransform(sx, 0, 0, sy, 0, -(90 - TOP) * sy); c.fill(new Path2D(DATA.land));
+  return land;
+}
+function cellImage(t, i) {   // one pixel per cell (whole globe, 90N at the top), in the map's colors: fast even with 100,000+ cells
+  const {min, max} = scaleOf(t), ramp = mapRamp(), rows = Math.round(180 / t.cell), img = new ImageData(t.columns, rows), px = img.data;
+  const rgb = ramp.map(hex => [1, 3, 5].map(j => parseInt(hex.slice(j, j + 2), 16)));
+  const paint = (cell, v) => { const [r, g, b] = rgb[step(v, max, min)], o = cell * 4; px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255; };
+  if (state.view === 'month') { const f = t.frames[i] || []; for (let k = 0; k < f.length; k += 2) paint(f[k], f[k + 1]); }
+  else cumAt(t, i).forEach((v, cell) => { if (v) paint(cell, v); });
+  const cells = document.createElement('canvas'); cells.width = t.columns; cells.height = rows; cells.getContext('2d').putImageData(img, 0, 0);
+  return cells;
+}
+function drawMap() {
+  const t = T(), i = state.per[t.key], canvas = $('map'), c = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
+  const sx = w / 360, sy = h / (TOP - BOTTOM), ramp = mapRamp();
+  const {min, max} = scaleOf(t), size = t.cell;
+  c.clearRect(0, 0, w, h); c.drawImage(drawLand(w, h), 0, 0);
+  const cells = cellImage(t, i), rows = cells.height;
+  c.imageSmoothingEnabled = false;
+  c.drawImage(cells, 0, (90 - TOP) / size, t.columns, (TOP - BOTTOM) / size, 0, 0, w, h);
+}
+function cellAt(e) {
+  const r = $('map').getBoundingClientRect();
+  return valueAt((e.clientX - r.left) / r.width * 360 - 180, TOP - (e.clientY - r.top) / r.height * (TOP - BOTTOM));
+}
+function valueAt(lon, lat) {
+  const t = T(), col = Math.floor((lon + 180) / t.cell), row = Math.floor((90 - lat) / t.cell), cell = row * t.columns + col, i = state.per[t.key];
+  let v = 0;
+  if (state.view === 'total') v = cumAt(t, i)[cell];
+  else { const f = t.frames[i]; for (let k = 0; k < f.length; k += 2) if (f[k] === cell) { v = f[k + 1]; break; } }
+  return {v, lon, lat};
+}
+function renderLegend(t) {
+  const {min, max} = scaleOf(t), ramp = mapRamp();
+  const edge = k => Math.max(1, Math.round(min * Math.exp(k / 6 * Math.log((max + 1) / min))));
+  const what = (t.days ? 'Clear days' : 'Observed days') + (state.view === 'month' ? '' : ', summed');
+  $('legend').replaceChildren(el('span', {text: `${what} per pixel, mean in a ${t.cell}° cell:`}), el('span', {text: (min > 1 ? '≤ ' : '') + fmt(edge(0))}),
+    el('span', {class: 'scale'}, ramp.map(c => { const i = el('i'); i.style.background = c; return i; })), el('span', {text: `${fmt(edge(6))}+`}),
+    el('span', {text: 'The scale stays fixed across months, so months compare directly.'}));
+}
+function renderTimeline(t) {
+  const w = 1200, h = 86, top = 18, base = h - 20, n = t.totals.length, bw = w / n, i0 = state.per[t.key], view = state.view;
+  const values = view === 'month' ? t.totals.map(m => m.n) : t.totals.reduce((a, m) => (a.push((a[a.length - 1] || 0) + m.n), a), []);
+  const max = Math.max(1, ...values), y = v => base - (base - top) * v / max, cx = i => i * bw + bw / 2;
+  const root = svg('svg', {viewBox: `0 0 ${w} ${h}`, width: '100%', 'aria-hidden': 'true'});
+  if (view === 'month') {
+    values.forEach((v, i) => root.append(svg('rect', {x: i * bw + 1, y: y(v), width: Math.max(1, bw - 2), height: base - y(v),
+      fill: i === i0 ? 'var(--series)' : 'var(--muted-mark)'})));   // only the month on the map: this view is not cumulative
+  } else {
+    const line = k => values.slice(0, k + 1).map((v, i) => `${i ? 'L' : 'M'}${cx(i)},${y(v)}`).join('');
+    root.append(svg('path', {d: `${line(n - 1)}L${cx(n - 1)},${base}L${cx(0)},${base}Z`, fill: 'var(--muted-mark)', opacity: .45}));
+    root.append(svg('path', {d: `${line(i0)}L${cx(i0)},${base}L${cx(0)},${base}Z`, fill: 'var(--check)'}));
+    root.append(svg('path', {d: line(i0), fill: 'none', stroke: 'var(--series)', 'stroke-width': 2}));
+  }
+  const gap = t.totals.findIndex(m => m.month >= t.fetched_from);   // months before this are not fetched yet
+  if (gap > 0) {
+    root.append(svg('rect', {x: 0, y: top, width: gap * bw, height: base - top, fill: 'var(--surface-2)', stroke: 'var(--grid)', 'stroke-dasharray': '4 3'}));
+    if (gap * bw > 120) root.append(svg('text', {x: gap * bw / 2, y: (top + base) / 2 + 4, 'text-anchor': 'middle', text: 'Not fetched yet'}));
+  }
+  t.totals.forEach((m, i) => { if (m.pending) root.append(svg('rect', {x: i * bw, y: top, width: bw, height: base - top,   // not counted yet
+    fill: 'var(--surface-2)', stroke: 'var(--grid)', 'stroke-dasharray': '4 3'})); });
+  root.append(svg('line', {x1: 0, x2: w, y1: base, y2: base, stroke: 'var(--axis)'}));
+  t.totals.forEach((m, i) => {
+    const jan = m.month.endsWith('-01'), quarter = /-(04|07|10)$/.test(m.month);
+    if (jan || quarter || i === 0) root.append(svg('line', {x1: i * bw, x2: i * bw, y1: base, y2: base + (jan || i === 0 ? 7 : 4), stroke: 'var(--axis)'}));
+    if (jan || i === 0) root.append(svg('text', {x: i * bw + 3, y: h - 4, text: m.month.slice(0, 4)}));
+  });
+  const x0 = cx(i0), v0 = values[i0];
+  root.append(svg('line', {x1: x0, x2: x0, y1: top - 4, y2: base, stroke: 'var(--ink)', 'stroke-width': 1.5}));
+  root.append(svg('circle', {cx: x0, cy: y(v0), r: 5, fill: 'var(--surface)', stroke: 'var(--ink)', 'stroke-width': 2}));
+  const m0 = t.totals[i0], right = x0 > w - 320;
+  const text = t.totals[i0].pending ? 'not available'
+    : view === 'month' ? `${d1(v0)} ${units(t)}${t.days ? ` of ${d1(m0.obs)} observed` : m0.clear_ok ? ` (${d1(m0.clear)} clear)` : ''}, land mean`
+    : `${d1(v0)} ${units(t)} so far, land mean`;
+  root.append(svg('text', {x: right ? x0 - 8 : x0 + 8, y: top - 6, 'text-anchor': right ? 'end' : 'start', style: 'fill:var(--ink);font-weight:600', text}));
+  const box = $('timeline'); box.replaceChildren(root);
+  box.setAttribute('aria-valuemin', 0); box.setAttribute('aria-valuemax', n - 1); box.setAttribute('aria-valuenow', i0);
+  box.setAttribute('aria-valuetext', `${label(t, i0)}: ${text}`);
+}
+function renderTable(t) {
+  const i0 = state.per[t.key];
+  const rows = [...t.totals.keys()].reverse().map(i => { const m = t.totals[i];
+    return el('tr', {class: i === i0 ? 'sel' : '', onclick: () => go(i)}, el('td', {text: label(t, i)}), el('td', {text: d1(m.obs)}),
+      el('td', {text: m.clear_ok ? d1(m.clear) : '–'}), el('td', {text: m.clear_ok && m.obs ? `${Math.round(100 * m.clear / m.obs)}%` : '–'}),
+      el('td', {text: `${m.mask_days} of ${m.month_days}`})); });
+  $('table').replaceChildren(el('table', {class: 'monthtable'}, el('thead', {}, el('tr', {}, el('th', {text: 'Month'}), el('th', {text: 'Observed days'}),
+    el('th', {text: 'Clear days'}), el('th', {text: 'Clear share'}), el('th', {text: 'Days with masks'}))), el('tbody', {}, rows)));
+  $('tableNote').textContent = 'Land means: the days a land pixel was observed (and clear) in the month. Newest first; select a month to show it on the map.';
+}
+// ---- Interactive globe: MapLibre GL (loaded on first use), the same cells drawn into a Web Mercator image, gray land or imagery
+const MLIB = 'https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl', MERC = 85.05113, CORNERS = [[-180, MERC], [180, MERC], [180, -MERC], [-180, -MERC]];
+const GL = {on: false, map: null, ready: false, loading: null, proj: 'globe', base: 'gray'};
+function loadMaplibre() {
+  if (window.maplibregl) return Promise.resolve();
+  return GL.loading = GL.loading || new Promise((ok, no) => {
+    document.head.append(el('link', {rel: 'stylesheet', href: MLIB + '.css'}));
+    const sc = document.createElement('script'); sc.src = MLIB + '.js'; sc.onload = ok; sc.onerror = no; document.head.append(sc);
+  });
+}
+function landGeoJSON() {   // the page's land outline (x = lon + 180, y = 90 - lat), as polygons
+  const rings = DATA.land.split('M').map(r => r.replace(/Z/g, '').trim()).filter(Boolean)
+    .map(r => r.split(/\s+/).map(p => { const [x, y] = p.split(',').map(Number); return [x - 180, 90 - y]; })).filter(r => r.length > 2);
+  rings.forEach(r => { const a = r[0], b = r[r.length - 1]; if (a[0] !== b[0] || a[1] !== b[1]) r.push(a); });
+  return {type: 'Feature', properties: {}, geometry: {type: 'MultiPolygon', coordinates: rings.map(r => [r])}};
+}
+function mercatorImage() {   // the cell image warped to Web Mercator rows, so it sits exactly on the map; cells stay sharp (nearest)
+  const t = T(), H = 2048, out = GL.canvas || (GL.canvas = document.createElement('canvas'));
+  if (!t.ck) { out.width = 2; out.height = 2; return out.toDataURL(); }   // maps still loading: render() fills it in once they arrive
+  const small = cellImage(t, state.per[t.key]);
+  out.width = t.columns * 2; out.height = H;
+  const c = out.getContext('2d'); c.clearRect(0, 0, out.width, H); c.imageSmoothingEnabled = false;
+  const yMax = Math.log(Math.tan(Math.PI / 4 + MERC * Math.PI / 360));
+  for (let y = 0; y < H; y++) {
+    const lat = (2 * Math.atan(Math.exp(yMax - (y + 0.5) / H * 2 * yMax)) - Math.PI / 2) * 180 / Math.PI;
+    c.drawImage(small, 0, Math.floor((90 - lat) / t.cell), t.columns, 1, 0, y, out.width, 1);
+  }
+  return out.toDataURL();
+}
+function updateGlobe() {
+  if (!GL.on || !GL.ready) return;
+  GL.map.getSource('cells').updateImage({url: mercatorImage(), coordinates: CORNERS});
+  GL.map.setPaintProperty('bg', 'background-color', css('--surface-2'));   // the ocean: a shade off the page, so the globe's edge shows
+  GL.map.setPaintProperty('land', 'fill-color', css('--land'));
+  GL.map.setLayoutProperty('imagery', 'visibility', GL.base === 'imagery' ? 'visible' : 'none');
+  GL.map.setLayoutProperty('land', 'visibility', GL.base === 'imagery' ? 'none' : 'visible');
+}
+function setMapMode(globe) {
+  GL.on = globe; $('mStatic').classList.toggle('on', !globe); $('mGlobe').classList.toggle('on', globe);
+  $('map').hidden = globe; $('globe').hidden = !globe;
+  if (!globe) return;
+  loadMaplibre().then(() => {
+    if (GL.map) { GL.map.resize(); return updateGlobe(); }
+    GL.map = new maplibregl.Map({container: 'globe', center: [10, 25], zoom: 1.75, maxZoom: 7, attributionControl: {compact: true},
+      style: {version: 8, projection: {type: GL.proj},
+        sources: {land: {type: 'geojson', data: landGeoJSON()},
+          imagery: {type: 'raster', tileSize: 256, maxzoom: 17, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
+                    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}']},
+          cells: {type: 'image', url: mercatorImage(), coordinates: CORNERS}},
+        layers: [{id: 'bg', type: 'background', paint: {'background-color': css('--surface-2')}},
+          {id: 'imagery', type: 'raster', source: 'imagery', layout: {visibility: 'none'}},
+          {id: 'land', type: 'fill', source: 'land', paint: {'fill-color': css('--land')}},
+          {id: 'cells', type: 'raster', source: 'cells', paint: {'raster-resampling': 'nearest', 'raster-fade-duration': 0}}]}});
+    GL.map.addControl(new maplibregl.NavigationControl({visualizePitch: true}), 'top-right');
+    GL.map.on('load', () => { GL.ready = true; updateGlobe(); });
+    GL.map.on('mousemove', e => {
+      const c = valueAt(e.lngLat.lng, e.lngLat.lat);   // the same tooltip as the static map
+      if (c.v) showTip(e.originalEvent, fmt(c.v), `${units(T())} near ${Math.abs(c.lat).toFixed(0)}°${c.lat >= 0 ? 'N' : 'S'}, ${Math.abs(c.lon).toFixed(0)}°${c.lon >= 0 ? 'E' : 'W'}`); else hideTip();
+    });
+    GL.map.on('mouseout', hideTip);
+  }).catch(e => { $('mapNote').textContent = window.maplibregl ? `The interactive globe could not start here (${e && e.message || e}); the static map is shown.`
+    : 'The interactive globe needs an internet connection (MapLibre GL); the static map is shown.'; setMapMode(false); });
+}
+$('mStatic').onclick = () => setMapMode(false);
+$('mGlobe').onclick = () => setMapMode(true);
+const pick = (on, off, apply) => { $(on).classList.add('on'); $(off).classList.remove('on'); apply(); };
+$('gGlobe').onclick = () => pick('gGlobe', 'gFlat', () => { GL.proj = 'globe'; GL.map && GL.map.setProjection({type: 'globe'}); });
+$('gFlat').onclick = () => pick('gFlat', 'gGlobe', () => { GL.proj = 'mercator'; GL.map && GL.map.setProjection({type: 'mercator'}); });
+$('gGray').onclick = () => pick('gGray', 'gImagery', () => { GL.base = 'gray'; updateGlobe(); });
+$('gImagery').onclick = () => pick('gImagery', 'gGray', () => { GL.base = 'imagery'; updateGlobe(); });
+function render() {
+  if (!T().ck) return;   // still loading: show() renders once the maps arrive, with whatever view was picked meanwhile
+  const t = T(), i = state.per[t.key], m = t.totals[i];
+  const now = t.totals[i].month === t.partial;
+  const missing = t.totals[i].month < t.fetched_from || !!t.totals[i].pending;
+  $('month').replaceChildren(name(t.totals[i].month), now ? el('small', {text: ' so far'}) : missing ? el('small', {text: t.days ? ' no clear masks' : ' not available'}) : '');
+  const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
+  // land means for the month on the map: observed days, clear days, the clear share, and the mean revisit (days between looks)
+  $('answer').replaceChildren(tile(d1(m.obs), `observed days in ${label(t, i)}, land mean`, 'hero'),
+    tile(m.clear_ok ? d1(m.clear) : '–', m.clear_ok ? 'clear days, land mean' : 'clear days: no clear masks this month'),
+    tile(m.clear_ok && m.obs ? `${Math.round(100 * m.clear / m.obs)}%` : '–', 'of observed days clear'),
+    tile(m.obs ? `${d1(m.mask_days / m.obs)} days` : '–', 'mean revisit, land pixels'));
+  $('mapTitle').textContent = state.view === 'month' ? `HLS ${units(t)}, ${label(t, i)}` : `HLS ${units(t)}, summed up to ${label(t, i)}`;
+  $('mapNote').textContent = t.days && missing ? 'No clear masks for this month (2018 and 2021 are missing so far): switch Count to Observed days.'
+    : state.metric === 'days' && !t.days ? 'Clear days are not available yet, so it shows observed days.'
+    : t.days ? 'The days a pixel was observed clear (Landsat or Sentinel-2), averaged over the land pixels in each cell. Point at a cell for its value.'
+    : 'The days a pixel was observed (Landsat or Sentinel-2, clear or not), averaged over the land pixels in each cell. Point at a cell for its value.';
+  drawMap(); updateGlobe(); renderLegend(t); renderTimeline(t); renderTable(t);
+}
+function go(i) { if (!T().ck) return; state.per[T().key] = i; render(); }
+function stop() { clearInterval(state.timer); state.timer = null; $('play').textContent = '▶ Play'; }
+function start() {
+  const t = T();
+  if (!t.ck) return;
+  if (state.per[t.key] >= t.totals.length - 2) go(0);   // from the latest month, play from the start
+  $('play').textContent = '❚❚ Pause';
+  state.timer = setInterval(() => { const n = state.per[T().key] + 1; if (n > T().totals.length - 1) stop(); else go(n); }, +$('speed').value);
+}
+function renderTabs() {
+  $('tabs').replaceChildren(...DATA.tabs.map((t, i) => {
+    const sw = el('i', {class: 'swatch'}); sw.style.background = t.palette.color;
+    const plain = t.groups.filter(g => !g.parts);
+    const b = el('button', {role: 'tab', 'aria-selected': i === state.tab, onclick: () => { if (t.hidden) return; stop(); state.tab = i; show(); }},
+      el('b', {}, sw, t.vendor), el('span', {text: plain.map(g => g.constellation).join(', ') + (t.pending ? ' · pending' : t.hidden ? ' · unavailable' : '')}));
+    if (t.hidden) { b.classList.add('off'); b.title = 'Temporarily unavailable'; b.setAttribute('aria-disabled', 'true'); }
+    if (i === state.tab) b.style.borderBottomColor = t.palette.color;
+    return b;
+  }));
+}
+function undelta(f) {   // cells were stored as steps from the previous cell
+  const out = new Int32Array(f.length); let c = 0;
+  for (let k = 0; k < f.length; k += 2) { c += f[k]; out[k] = c; out[k + 1] = f[k + 1]; }
+  return out;
+}
+// a vendor tag in its own color: the lightest and darkest steps of its ramp
+const vendorTag = (tab, text) => { const r = tab.palette[dark() ? 'dark' : 'light'], t = el('span', {class: 'vtag', text: text || tab.vendor});
+  t.style.background = `color-mix(in oklab, ${r[0]} 65%, var(--surface))`; t.style.color = r[6]; return t; };
+function showPending(tab) {   // a vendor whose catalog access is not in place yet
+  stop(); renderTabs();
+  $('pending').replaceChildren(el('h2', {}, vendorTag(tab), ' ', tab.groups.map(g => g.constellation).join(', ')),
+    el('p', {class: 'note', style: 'font-size:14px;margin:8px 0 0'}, el('b', {text: 'Available pending API access. '}),
+      `Monthly maps of where and when ${tab.vendor} collects will appear here once access to ${tab.catalog} is in place.`));
+  $('foot').textContent = '';
+}
+function show() {
+  document.querySelector('.viz-root').classList.toggle('is-pending', !!TAB().pending);
+  if (TAB().pending) return showPending(TAB());
+  const groups = TAB().groups, sel = $('group');
+  sel.replaceChildren(...groups.map((g, i) => el('option', {value: i, text: g.constellation})));
+  sel.value = state.group[state.tab] || 0; $('groupWrap').style.visibility = groups.length < 2 ? 'hidden' : '';   // keeps its place: nothing moves between tabs
+  const t = T(), g0 = G();
+  applyPalette(); renderTabs();
+  $('metric').querySelector('[value=days]').disabled = !!g0.parts;   // days cannot be added across constellations
+  // large constellations load their monthly maps when first picked; a combined view needs all of its parts
+  const need = (t.parts ? groups.filter(g => t.parts.includes(g.constellation)) : [t]).filter(g => g.lazy && !g.frames);
+  if (need.length) {
+    $('mapTitle').textContent = `${t.vendor} ${t.constellation}`; $('mapNote').textContent = 'Loading the monthly maps…';
+    const bin = name => fetch(`${DATA.data_base}${name}`).then(r => { if (!r.ok) throw r.status; return r.arrayBuffer(); }).then(b => new Uint8Array(b));
+    const frames = (g, a) => { let c = 0; const cells = g.cells.map(d => (c += d)), n = cells.length;   // cells: steps from the one before
+      return g.totals.map((_, m) => { const out = []; for (let k = 0; k < n; k++) { const v = a[m * n + k]; if (v) out.push(cells[k], v); } return Int32Array.from(out); }); };
+    Promise.all(need.map(g => Promise.all([bin(g.files.observed), bin(g.files.clear)]).then(([o, c]) => {
+      g.frames = frames(g, o); g.dayFrames = frames(g, c);
+      g.clearTotals = g.totals.map(m => ({...m, n: m.clear_ok ? m.clear : 0, pending: !m.clear_ok})); })))
+      .then(() => { if (G() === g0) show(); })
+      .catch(() => { $('mapNote').textContent = 'These maps load on the published page: https://pahbs.github.io/hls/'; });
+    return;
+  }
+  prepare(t); render();
+  const entries = [['A cell shows', `The mean, over the land pixels in a ${t.cell}° square, of the days in the month on which a pixel was observed (Count: Observed days) or observed clear (Count: Clear days). 0 to 31.`],
+    ['Observed', 'Any HLS observation that day, from Landsat 8 / 9 (L30) or Sentinel-2 (S30), whatever the cloud. Landsat and Sentinel-2 are counted together.'],
+    ['Clear', 'An observation that day with the pixel clear of cloud, per the daily clear masks. 2018 and 2021 have no clear masks yet.'],
+    ['Land', 'Every pixel HLS observed at least once, 2013–2025.'],
+    ['Mean revisit', 'The days with masks in the month divided by the land-mean observed days: the typical gap between looks.'],
+    ['Source', `Daily global masks, about 1 km (0.009°), one per day: observation and clear. Counted per 0.1° cell and day, then averaged here per ${t.cell}° cell and month.`]];
+  $('guide').replaceChildren(...entries.flatMap(([k, v]) => [el('dt', {text: k}), el('dd', {text: v})]));
+  const dot = el('i', {class: 'swatch'}); dot.style.background = t.palette.color;
+  $('readTitle').replaceChildren('How to read the ', dot, el('b', {text: 'HLS'}), ' map:');
+  $('foot').textContent = `Masks: ${DATA.source}. Built ${DATA.updated} with archive_density/hls_density.py (github.com/pahbs/hls).`;
+}
+showUpdated(DATA.updated);
+const tl = $('timeline'); let dragging = false;
+const monthAt = e => { const r = tl.getBoundingClientRect(); return Math.max(0, Math.min(T().totals.length - 1, Math.floor((e.clientX - r.left) / r.width * T().totals.length))); };
+tl.addEventListener('pointerdown', e => { dragging = true; tl.setPointerCapture(e.pointerId); stop(); go(monthAt(e)); });
+tl.addEventListener('pointermove', e => {
+  const i = monthAt(e), t = T();
+  if (dragging) { if (i !== state.per[t.key]) go(i); hideTip(); }
+  else { const m = t.totals[i]; showTip(e, m.pending ? 'Not available' : `${d1(m.n)} ${units(t)} in`,
+    `${label(t, i)}, land mean${t.days ? (m.pending ? '' : `, of ${d1(m.obs)} observed`) : m.clear_ok ? `, ${d1(m.clear)} clear` : ''}`); }
+});
+tl.addEventListener('pointerup', () => { dragging = false; });
+tl.addEventListener('pointerleave', hideTip);
+tl.addEventListener('keydown', e => {
+  const t = T(), i = state.per[t.key], last = t.totals.length - 1;
+  const to = {ArrowLeft: i - 1, ArrowRight: i + 1, ArrowDown: i - 1, ArrowUp: i + 1, PageDown: i - 12, PageUp: i + 12, Home: 0, End: last}[e.key];
+  if (to === undefined) return;
+  e.preventDefault(); stop(); go(Math.max(0, Math.min(last, to)));
+});
+$('play').addEventListener('click', () => state.timer ? stop() : start());
+$('view').addEventListener('change', e => { state.view = e.target.value; render(); });
+$('group').addEventListener('change', e => { stop(); state.group[state.tab] = +e.target.value; show(); });
+$('metric').addEventListener('change', e => { stop(); state.metric = e.target.value; show(); });
+$('scale').addEventListener('change', e => { state.scale = e.target.value; show(); });
+$('speed').addEventListener('change', () => { if (state.timer) { stop(); start(); } });
+$('map').addEventListener('pointermove', e => { const c = cellAt(e); if (c.v) showTip(e, fmt(c.v), `${units(T())} near ${Math.abs(c.lat).toFixed(0)}°${c.lat >= 0 ? 'N' : 'S'}, ${Math.abs(c.lon).toFixed(0)}°${c.lon >= 0 ? 'E' : 'W'}`); else hideTip(); });
+$('map').addEventListener('pointerleave', hideTip);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { land = null; applyPalette(); render(); });
+if (DATA.tabs[state.tab].hidden) state.tab = Math.max(0, DATA.tabs.findIndex(t => !t.hidden && !t.pending));   // open on a tab that is shown
+show();
+</script>
+</body>
+</html>
