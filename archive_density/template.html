@@ -122,7 +122,7 @@ button.action { font: inherit; font-size: 13px; padding: 4px 11px; border-radius
 
 .controls { gap: 10px 18px; }
 .controls input[type=range] { width: min(420px, 40vw); }
-.month { font-size: 20px; font-weight: 650; width: 12em; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ink); }
+.month { font-size: 20px; font-weight: 650; width: auto; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ink); }
 .month small { font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .timeline { flex-basis: 100%; cursor: pointer; touch-action: none; outline-offset: 3px; border-radius: 6px; }
 .timeline:focus { outline: none; }
@@ -214,8 +214,9 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 .globebar button { background: color-mix(in oklab, var(--surface) 88%, transparent); }
 /* the controls in fixed places on every tab: Play and the month, the four choices on line 1; the constellation picker (vendors with
    several) on line 2, which keeps its height on single-constellation tabs; then the timeline */
-.filters.controls { display: grid; grid-template-columns: max-content 170px max-content max-content max-content 1fr; align-items: center; gap: 10px 22px; }
+.filters.controls { display: grid; grid-template-columns: max-content max-content 1fr max-content max-content; align-items: center; gap: 10px 22px; }
 .filters.controls #groupWrap { grid-column: 1 / 3; grid-row: 2; }
+.filters.controls .month { min-width: 0; }   /* Play, Speed, the month heading (its status note never moves the selectors); Show and Count at the right */
 .filters.controls .scale { grid-column: 6; grid-row: 1; justify-self: end; }
 .filters.controls .timeline { grid-column: 1 / -1; }
 @media (max-width: 1000px) { .filters.controls { display: flex; } }
@@ -255,8 +256,8 @@ canvas { display: block; width: 100%; height: auto; border-radius: 8px; backgrou
 <div class="card" id="pending" style="margin-top:18px"></div>
 <div class="filters controls">
   <button class="action play" id="play">▶ Play</button>
-  <span class="month" id="month"></span>
   <label class="speed">Speed <select id="speed" aria-label="Speed"><option value="1200">Slow</option><option value="600" selected>Medium</option><option value="250">Fast</option></select></label>
+  <span class="month" id="month"></span>
   <label id="groupWrap">Constellation <select id="group" aria-label="Constellation"></select></label>
   <label>Show <select id="view" aria-label="Show"><option value="month">This month</option><option value="total">Running total</option></select></label>
   <label>Count <select id="metric" aria-label="Count"><option value="n">Observed days</option><option value="days">Clear days</option></select></label>
@@ -476,8 +477,8 @@ function renderTimeline(t) {
   root.append(svg('circle', {cx: x0, cy: y(v0), r: 5, fill: 'var(--surface)', stroke: 'var(--ink)', 'stroke-width': 2}));
   const m0 = t.totals[i0], right = x0 > w - 320;
   const text = t.totals[i0].pending ? 'not available'
-    : view === 'month' ? `${d1(v0)} ${units(t)}${t.days ? ` of ${d1(m0.obs)} observed` : m0.clear_ok ? ` (${d1(m0.clear)} clear)` : ''}, global land mean`
-    : `${d1(v0)} ${units(t)} so far, global land mean`;
+    : view === 'month' ? `${d1(v0)} ${units(t)}${t.days ? ` of ${d1(m0.obs)} observed` : m0.clear_ok ? ` (${d1(m0.clear)} clear)` : ''}`
+    : `${d1(v0)} ${units(t)} so far`;
   root.append(svg('text', {x: right ? x0 - 8 : x0 + 8, y: top - 6, 'text-anchor': right ? 'end' : 'start', style: 'fill:var(--ink);font-weight:600', text}));
   const box = $('timeline'); box.replaceChildren(root);
   box.setAttribute('aria-valuemin', 0); box.setAttribute('aria-valuemax', n - 1); box.setAttribute('aria-valuenow', i0);
@@ -561,17 +562,17 @@ function render() {
   const t = T(), i = state.per[t.key], m = t.totals[i];
   const now = t.totals[i].month === t.partial;
   const missing = t.totals[i].month < t.fetched_from || !!t.totals[i].pending;
-  $('month').replaceChildren(name(t.totals[i].month), now ? el('small', {text: ' so far'}) : missing ? el('small', {text: G().totals[i].pending ? ' not counted yet' : ' no clear masks'}) : '');
+  $('month').replaceChildren(`${name(t.totals[i].month)} mean count (global land)`, now ? el('small', {text: ' so far'}) : missing ? el('small', {text: G().totals[i].pending ? ' not counted yet' : ' no clear masks'}) : '');
   const tile = (v, k, cls = '') => el('div', {class: 'tile ' + cls}, el('div', {class: 'v', text: v}), el('div', {class: 'k', text: k}));
   // satellites contributing in the month on the map (from NASA CMR: HLS granules per platform); then global land
-  // means for the month on the map: observed days, clear days, the clear share, and the mean revisit (days between looks)
+  // means (said once, in the month heading) for the month on the map: observed days, clear days, the clear share, and the mean revisit (days between looks)
   const k = sats(m).length;
   $('answer').replaceChildren(
     tile(k ? k.toLocaleString() : '–', `satellite${k === 1 ? '' : 's'} contributing to archive in ${label(t, i)}`, 'hero'),
-    tile(missing && !t.days ? '–' : d1(m.obs), `observed days in ${label(t, i)}, global land mean`),
-    tile(m.clear_ok ? d1(m.clear) : '–', m.clear_ok ? 'clear days, global land mean' : 'clear days: no clear masks this month'),
-    tile(m.clear_ok && m.obs ? `${Math.round(100 * m.clear / m.obs)}%` : '–', 'of observed days clear, global land mean'),
-    tile(m.obs ? `${d1(m.mask_days / m.obs)} days` : '–', 'mean revisit, global land mean'));
+    tile(missing && !t.days ? '–' : d1(m.obs), 'observed days'),
+    tile(m.clear_ok ? d1(m.clear) : '–', m.clear_ok ? 'clear days' : 'clear days: no clear masks this month'),
+    tile(m.clear_ok && m.obs ? `${Math.round(100 * m.clear / m.obs)}%` : '–', 'of observed days clear'),
+    tile(m.obs ? `${d1(m.mask_days / m.obs)} days` : '–', 'revisit (days between observations)'));
   $('mapTitle').textContent = state.view === 'month' ? `HLS ${units(t)}, ${label(t, i)}` : `HLS ${units(t)}, summed up to ${label(t, i)}`;
   $('mapNote').textContent = !t.days && missing ? 'This month has not been counted yet: it is being added.'
     : t.days && missing ? (G().totals[i].pending ? 'This month has not been counted yet: it is being added.' : 'No clear masks for this month (2018 and 2021 are missing so far): switch Count to Observed days.')
@@ -662,7 +663,7 @@ tl.addEventListener('pointermove', e => {
   if (dragging) { if (i !== state.per[t.key]) go(i); hideTip(); }
   else { const m = t.totals[i], joins = starts(t).filter(([k]) => k === i).map(([, s]) => s);
     showTip(e, m.pending ? 'Not available' : `${d1(m.n)} ${units(t)} in`,
-    `${label(t, i)}, global land mean${t.days ? (m.pending ? '' : `, of ${d1(m.obs)} observed`) : m.clear_ok ? `, ${d1(m.clear)} clear` : ''}`
+    `${label(t, i)}${t.days ? (m.pending ? '' : `, of ${d1(m.obs)} observed`) : m.clear_ok ? `, ${d1(m.clear)} clear` : ''}`
       + (joins.length ? ` · ${joins.join(' and ')} ${joins.length > 1 ? 'begin' : 'begins'}` : '')); }
 });
 tl.addEventListener('pointerup', () => { dragging = false; });
